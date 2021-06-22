@@ -98,11 +98,12 @@ end
 function console.run(opt)
   opt = init_opt(opt)
   
-  local current_doc = core.active_view.doc
-  local filename = system.absolute_path(current_doc.filename)
-  opt.command = opt.command:gsub("$FILENAME", filename)
-
   local function thread()
+    local success, response = pcall(function()
+      local current_doc = core.active_view.doc
+      local filename = system.absolute_path(current_doc.filename)
+    	opt.command = opt.command:gsub("$FILENAME", filename)
+end)
     -- init script file(s)
     if PLATFORM == "Windows" then
       write_file(files.script, opt.command .. "\n")
