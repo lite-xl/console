@@ -97,6 +97,10 @@ end
 
 function console.run(opt)
   opt = init_opt(opt)
+  
+  local current_doc = core.active_view.doc
+  local filename = system.absolute_path(current_doc.filename)
+  opt.command = opt.command:gsub("$FILENAME", filename)
 
   local function thread()
     -- init script file(s)
