@@ -11,13 +11,6 @@ config.console_size = 250 * SCALE
 config.max_console_lines = 200
 config.autoscroll_console = true
 
-local files = {
-  script   = core.temp_filename(PLATFORM == "Windows" and ".bat"),
-  script2  = core.temp_filename(PLATFORM == "Windows" and ".bat"),
-  output   = core.temp_filename(),
-  complete = core.temp_filename(),
-}
-
 local current_process = nil
 
 local console = {}
@@ -31,22 +24,6 @@ local visible = false
 
 function console.clear()
   output = { { text = "", time = 0 } }
-end
-
-
-local function read_file(filename, offset)
-  local fp = io.open(filename, "rb")
-  fp:seek("set", offset or 0)
-  local res = fp:read("*a")
-  fp:close()
-  return res
-end
-
-
-local function write_file(filename, text)
-  local fp = io.open(filename, "w")
-  fp:write(text)
-  fp:close()
 end
 
 
