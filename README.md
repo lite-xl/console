@@ -1,3 +1,4 @@
+
 # Console
 A console plugin for the [lite text editor](https://github.com/rxi/lite)
 

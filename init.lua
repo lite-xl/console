@@ -18,6 +18,8 @@ local files = {
   complete = core.temp_filename(),
 }
 
+local current_process = nil
+
 local console = {}
 
 local views = {}
@@ -52,6 +54,13 @@ local function lines(text)
   return (text .. "\n"):gmatch("(.-)\n")
 end
 
+local function split(str, sep)
+	local t = {}
+	for s in str:gmatch("([^"..sep.."]+)") do
+		table.insert(t, s)
+	end
+	return t
+end
 
 local function push_output(str, opt)
   local first = true
@@ -99,54 +108,35 @@ function console.run(opt)
   opt = init_opt(opt)
 
   local function thread()
-    -- init script file(s)
-    if PLATFORM == "Windows" then
-      write_file(files.script, opt.command .. "\n")
-      write_file(files.script2, string.format([[
-        @echo off
-        call %q >%q 2>&1
-        echo "" >%q
-        exit
-      ]], files.script, files.output, files.complete))
-      system.exec(string.format("call %q", files.script2))
-    else
-      write_file(files.script, string.format([[
-        %s
-        touch %q
-      ]], opt.command, files.complete))
-      system.exec(string.format("bash %q >%q 2>&1", files.script, files.output))
-    end
+    -- init process
+    local cmd = split(opt.command, "(.-)%s")
+		current_process = process.start(cmd)
+    coroutine.yield(0.1)
 
     -- checks output file for change and reads
     local last_size = 0
-    local function check_output_file()
-      if PLATFORM == "Windows" then
-        local fp = io.open(files.output)
-        if fp then fp:close() end
-      end
-      local info = system.get_file_info(files.output)
-      if info and info.size > last_size then
-        local text = read_file(files.output, last_size)
+    local function check_output()
+			if current_process == nil then return end
+			local text = current_process:read_stdout()
+      if text and text:len() > last_size then
         push_output(text, opt)
-        last_size = info.size
+        last_size = text:len()
       end
     end
 
     -- read output file until we get a file indicating completion
-    while not system.get_file_info(files.complete) do
-      check_output_file()
+    while current_process ~= nil and current_process:running() do
+      check_output()
       coroutine.yield(0.1)
     end
-    check_output_file()
+
+    check_output()
+
     if output[#output].text ~= "" then
       push_output("\n", opt)
     end
     push_output("!DIVIDER\n", opt)
 
-    -- clean up and finish
-    for _, file in pairs(files) do
-      os.remove(file)
-    end
     opt.on_complete()
 
     -- handle pending thread
