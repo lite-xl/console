@@ -27,6 +27,18 @@ local output = nil
 local output_id = 0
 local visible = false
 
+function console.toggle()
+  visible = not visible
+end
+
+function console.close()
+  visible = false
+end
+
+function console.isVisible()
+  return visible
+end
+
 function console.clear()
   output = { { text = "", time = 0 } }
 end
