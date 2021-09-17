@@ -309,8 +309,12 @@ end
 
 -- init static bottom-of-screen console
 local view = ConsoleView()
-local node = core.root_view:get_active_node()
-node:split("down", view, {y = true}, true)
+local console_node
+
+local function plug_console_view()
+  console_node = core.root_view:get_primary_node()
+  console_node:split("down", view, {y = true}, true)
+end
 
 function view:update(...)
   local dest = visible and self.target_size or 0
@@ -323,19 +327,18 @@ local last_command = ""
 
 command.add(nil, {
   ["console:reset-output"] = function()
-    output = { { text = "", time = 0 } }
-  end,
-
-  ["console:open-console"] = function()
-    local node = core.root_view:get_active_node()
-    node:add_view(ConsoleView())
+    output = { { text = "" } } --, time = 0 } }
   end,
 
   ["console:toggle"] = function()
     visible = not visible
+    if visible and not console_node then
+      plug_console_view()
+    end
   end,
 
   ["console:run"] = function()
+    if not console_node then plug_console_view() end
     core.command_view:set_text(last_command, true)
     core.command_view:enter("Run Console Command", function(cmd)
       console.run { command = cmd }
