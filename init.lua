@@ -11,13 +11,6 @@ config.console_size = 250 * SCALE
 config.max_console_lines = 200
 config.autoscroll_console = true
 
-local files = {
-  script   = core.temp_filename(PLATFORM == "Windows" and ".bat"),
-  script2  = core.temp_filename(PLATFORM == "Windows" and ".bat"),
-  output   = core.temp_filename(),
-  complete = core.temp_filename(),
-}
-
 local console = {}
 
 local views = {}
@@ -29,22 +22,6 @@ local visible = false
 
 function console.clear()
   output = { { text = "", time = 0 } }
-end
-
-
-local function read_file(filename, offset)
-  local fp = io.open(filename, "rb")
-  fp:seek("set", offset or 0)
-  local res = fp:read("*a")
-  fp:close()
-  return res
-end
-
-
-local function write_file(filename, text)
-  local fp = io.open(filename, "w")
-  fp:write(text)
-  fp:close()
 end
 
 
@@ -98,71 +75,58 @@ end
 function console.run(opt)
   opt = init_opt(opt)
 
-  local function thread()
-    -- init script file(s)
-    if PLATFORM == "Windows" then
-      write_file(files.script, opt.command .. "\n")
-      write_file(files.script2, string.format([[
-        @echo off
-        call %q >%q 2>&1
-        echo "" >%q
-        exit
-      ]], files.script, files.output, files.complete))
-      system.exec(string.format("call %q", files.script2))
-    else
-      write_file(files.script, string.format([[
-        %s
-        touch %q
-      ]], opt.command, files.complete))
-      system.exec(string.format("bash %q >%q 2>&1", files.script, files.output))
-    end
+  local cmd = {}
+  for text in opt.command:gmatch("%S+") do
+    cmd[#cmd + 1] = text
+  end
+  local options = {
+    cwd = core.project_dir,
+    stderr = process.REDIRECT_PIPE,
+  }
+  local proc = process.start(cmd, options)
 
-    -- checks output file for change and reads
-    local last_size = 0
-    local function check_output_file()
-      if PLATFORM == "Windows" then
-        local fp = io.open(files.output)
-        if fp then fp:close() end
-      end
-      local info = system.get_file_info(files.output)
-      if info and info.size > last_size then
-        local text = read_file(files.output, last_size)
+  local thread_stdout = function()
+    while true do
+      local text = proc:read_stdout(1024)
+      if text then
         push_output(text, opt)
-        last_size = info.size
+      else
+        break
       end
+      coroutine.yield()
     end
-
-    -- read output file until we get a file indicating completion
-    while not system.get_file_info(files.complete) do
-      check_output_file()
-      coroutine.yield(0.1)
-    end
-    check_output_file()
-    if output[#output].text ~= "" then
-      push_output("\n", opt)
-    end
+    push_output("\n", opt)
     push_output("!DIVIDER\n", opt)
-
-    -- clean up and finish
-    for _, file in pairs(files) do
-      os.remove(file)
-    end
     opt.on_complete()
+    core.log("DEBUG: process run stdout terminated")
 
-    -- handle pending thread
     local pending = table.remove(pending_threads, 1)
     if pending then
-      core.add_thread(pending)
+      core.add_thread(pending.stdout)
+      core.add_thread(pending.stderr)
     else
       thread_active = false
     end
   end
 
+  local thread_stderr = function()
+    while true do
+      local text = proc:read_stderr(1024)
+      if not text then break end
+      if text ~= "" then
+        io.stderr:write("ERROR:\n")
+        io.stderr:write(text)
+      end
+      coroutine.yield(0.1)
+    end
+  end
+
   -- push/init thread
   if thread_active then
-    table.insert(pending_threads, thread)
+    table.insert(pending_threads, {stdout = thread_stdout, stderr = thread_stderr})
   else
-    core.add_thread(thread)
+    core.add_thread(thread_stdout)
+    core.add_thread(thread_stderr)
     thread_active = true
   end
 
