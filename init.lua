@@ -81,6 +81,7 @@ function console.run(opt)
   end
   local options = {
     cwd = core.project_dir,
+    stdin  = process.REDIRECT_DISCARD,
     stderr = process.REDIRECT_PIPE,
   }
   local proc = process.start(cmd, options)
