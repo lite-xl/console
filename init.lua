@@ -21,7 +21,7 @@ local output_id = 0
 local visible = false
 
 function console.clear()
-  output = { { text = "", time = 0 } }
+  output = { { text = "" } }
 end
 
 
@@ -39,7 +39,6 @@ local function push_output(str, opt)
     line = line:gsub("\x1b%[[%d;]+m", "") -- strip ANSI colors
     table.insert(output, {
       text = line,
-      time = os.time(),
       icon = line:find(opt.error_pattern) and "!"
           or line:find(opt.warning_pattern) and "i",
       file_pattern = opt.file_pattern,
@@ -283,19 +282,15 @@ function ConsoleView:draw()
   local icon_w = style.icon_font:get_width("!")
 
   for i, item, x, y, w, h in self:each_visible_line() do
-    local tx = x + style.padding.x
-    local time = os.date("%H:%M:%S", item.time)
+    local tx = x
     local color = style.text
     if self.hovered_idx == i then
       color = style.accent
       renderer.draw_rect(x, y, w, h, style.line_highlight)
     end
     if item.text == "!DIVIDER" then
-      local w = style.font:get_width(time)
-      renderer.draw_rect(tx, y + h / 2, w, math.ceil(SCALE * 1), style.dim)
+      renderer.draw_rect(tx, y + h / 2, 0, math.ceil(SCALE * 1), style.dim)
     else
-      tx = common.draw_text(style.font, style.dim, time, "left", tx, y, w, h)
-      tx = tx + style.padding.x
       if item.icon then
         common.draw_text(style.icon_font, color, item.icon, "left", tx, y, w, h)
       end
@@ -327,7 +322,7 @@ local last_command = ""
 
 command.add(nil, {
   ["console:reset-output"] = function()
-    output = { { text = "" } } --, time = 0 } }
+    output = { { text = "" } }
   end,
 
   ["console:toggle"] = function()
