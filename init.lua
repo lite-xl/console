@@ -85,6 +85,7 @@ function console.run(opt)
   }
   local proc = process.start(cmd, options)
 
+  local io_done = false
   local thread_stdout = function()
     while true do
       local text = proc:read_stdout(1024)
@@ -92,20 +93,9 @@ function console.run(opt)
       if text ~= "" then
         push_output(text, opt)
       end
-      coroutine.yield()
+      coroutine.yield(0.1)
     end
-    push_output("\n", opt)
-    push_output("!DIVIDER\n", opt)
-    opt.on_complete()
-    core.log("DEBUG: process run stdout terminated")
-
-    local pending = table.remove(pending_threads, 1)
-    if pending then
-      core.add_thread(pending.stdout)
-      core.add_thread(pending.stderr)
-    else
-      thread_active = false
-    end
+    io_done = true
   end
 
   local thread_stderr = function()
@@ -116,6 +106,27 @@ function console.run(opt)
         push_output(text, opt, "stderr")
       end
       coroutine.yield(0.1)
+    end
+    local ret
+    while not ret do
+      ret = proc:returncode()
+      coroutine.yield()
+    end
+    while not io_done do coroutine.yield(0.1) end
+    if ret ~= 0 then
+      push_output(string.format("Process terminated with error code: %d\n", ret), opt, "stderr")
+    end
+    push_output("\n", opt)
+    push_output("!DIVIDER\n", opt)
+
+    opt.on_complete()
+
+    local pending = table.remove(pending_threads, 1)
+    if pending then
+      core.add_thread(pending.stdout)
+      core.add_thread(pending.stderr)
+    else
+      thread_active = false
     end
   end
 
@@ -288,7 +299,7 @@ function ConsoleView:draw()
       renderer.draw_rect(x, y, w, h, style.line_highlight)
     end
     if item.text == "!DIVIDER" then
-      renderer.draw_rect(tx, y + h / 2, 0, math.ceil(SCALE * 1), style.dim)
+      renderer.draw_rect(tx, y + h / 2, w, math.ceil(SCALE * 1), style.dim)
     else
       if item.icon then
         common.draw_text(style.icon_font, color, item.icon, "left", tx, y, w, h)
