@@ -30,7 +30,7 @@ local function lines(text)
 end
 
 
-local function push_output(str, opt)
+local function push_output(str, opt, origin)
   local first = true
   for line in lines(str) do
     if first then
@@ -42,6 +42,7 @@ local function push_output(str, opt)
       icon = line:find(opt.error_pattern) and "!"
           or line:find(opt.warning_pattern) and "i",
       file_pattern = opt.file_pattern,
+      origin = origin or "stdout",
     })
     if #output > config.max_console_lines then
       table.remove(output, 1)
@@ -87,10 +88,9 @@ function console.run(opt)
   local thread_stdout = function()
     while true do
       local text = proc:read_stdout(1024)
-      if text then
+      if not text then break end
+      if text ~= "" then
         push_output(text, opt)
-      else
-        break
       end
       coroutine.yield()
     end
@@ -113,8 +113,7 @@ function console.run(opt)
       local text = proc:read_stderr(1024)
       if not text then break end
       if text ~= "" then
-        io.stderr:write("ERROR:\n")
-        io.stderr:write(text)
+        push_output(text, opt, "stderr")
       end
       coroutine.yield(0.1)
     end
@@ -283,7 +282,7 @@ function ConsoleView:draw()
 
   for i, item, x, y, w, h in self:each_visible_line() do
     local tx = x
-    local color = style.text
+    local color = item.origin == "stdout" and style.text or style.nagbar
     if self.hovered_idx == i then
       color = style.accent
       renderer.draw_rect(x, y, w, h, style.line_highlight)
