@@ -59,11 +59,13 @@ end
 
 local function init_opt(opt)
   local res = {
-    command = "",
+    command = {},
     file_pattern = "[^?:%s]+%.[^?:%s]+",
     error_pattern = "error",
     warning_pattern = "warning",
+    working_dir = ".",
     on_complete = function() end,
+    on_error = function() end,
   }
   for k, v in pairs(res) do
     res[k] = opt[k] or v
@@ -73,18 +75,15 @@ end
 
 
 function console.run(opt)
+  print("console.run", common.serialize(opt))
   opt = init_opt(opt)
 
-  local cmd = {}
-  for text in opt.command:gmatch("%S+") do
-    cmd[#cmd + 1] = text
-  end
   local options = {
-    cwd = core.project_dir,
+    cwd = opt.working_dir,
     stdin  = process.REDIRECT_DISCARD,
     stderr = process.REDIRECT_PIPE,
   }
-  local proc = process.start(cmd, options)
+  local proc = process.start(opt.command, options)
 
   local io_done = false
   local thread_stdout = function()
@@ -116,11 +115,12 @@ function console.run(opt)
     while not io_done do coroutine.yield(0.1) end
     if ret ~= 0 then
       push_output(string.format("Process terminated with error code: %d\n", ret), opt, "stderr")
+      opt.on_error()
+    else
+      opt.on_complete()
     end
     push_output("\n", opt)
     push_output("!DIVIDER\n", opt)
-
-    opt.on_complete()
 
     local pending = table.remove(pending_threads, 1)
     if pending then
@@ -294,7 +294,7 @@ function ConsoleView:draw()
 
   for i, item, x, y, w, h in self:each_visible_line() do
     local tx = x
-    local color = item.origin == "stdout" and style.text or style.nagbar
+    local color = item.origin == "stdout" and style.text or style.dim
     if self.hovered_idx == i then
       color = style.accent
       renderer.draw_rect(x, y, w, h, style.line_highlight)
