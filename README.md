@@ -30,13 +30,23 @@ local command = require "core.command"
 local keymap = require "core.keymap"
 local console = require "plugins.console"
 
-command.add(nil, {
+command.add("core.docview", {
   ["project:build-project"] = function()
     core.log "Building..."
+    local build_command
+    if string.match(core.active_view.doc.filename, "%.py$") then
+      build_command = string.format("python %q", core.active_view.doc.abs_filename)
+    elseif string.match(core.active_view.doc.filename, "%.c$") then
+      build_command = "./build_c.sh"
+    elseif string.match(core.active_view.doc.filename, "%.lua$") then
+      build_command = "./build_lua.sh"
+    else
+      return
+    end
     console.run {
-      command = "./build.sh",
+      command = build_command,
       file_pattern = "(.*):(%d+):(%d+): (.*)$",
-      cwd = "."
+      cwd = ".",
       on_complete = function(retcode) core.log("Build complete with return code "..retcode) end,
     }
   end
