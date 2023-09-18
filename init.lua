@@ -28,7 +28,7 @@ config.plugins.console = common.merge({
   size = 250 * SCALE,
   max_lines = 200,
   autoscroll = true,
-  console_place = "rootview"
+  console_place = "rootview",
   config_spec = {
     name = "Console",
     {
