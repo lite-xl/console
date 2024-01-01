@@ -151,6 +151,8 @@ function console.run(opt)
         push_output(text, opt)
         coroutine.yield(0.1)
         text = proc:read_stdout()
+
+        if text and #text == 0 and not proc:running() then break end
       end
       if output[#output].text ~= "" then
         push_output("\n", opt)
